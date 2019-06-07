@@ -1,51 +1,27 @@
 version: 2.1
 
 executors:
-  alpine:
+  esplinux-bootstrap:
     docker:
-      - image: alpine:3.9
-    working_directory: ~/
+      - image: esplinux/bootstrap
     environment:
-      VERSION: bootstrap
-      ESPBUILD_VERSION: 0.01
-      GHR_VERSION: v0.12.1
+      VERSION: "0.01"
 
 jobs:
-  prepare:
-    executor: alpine
-    steps:
-      - run: apk add ca-certificates curl go git build-base
-      - run: mkdir -p ~/workspace/tools/bin
-      - run: curl -LO https://github.com/esplinux/espbuild/releases/download/$ESPBUILD_VERSION/espbuild.tar.gz
-      - run: cd ~/workspace/tools; tar xf ~/espbuild.tar.gz
-      - run: go mod init .
-      - run: go get github.com/tcnksm/ghr@$GHR_VERSION
-      - run: cp /root/go/bin/ghr ~/workspace/tools/bin
-      - store_artifacts:
-          path: ~/workspace/tools
-      - persist_to_workspace:
-          root: ~/workspace
-          paths:
-            - tools
-
   zlib:
-    executor: alpine
+    executor: esplinux-bootstrap
     steps:
-      - run: apk add ca-certificates 
       - checkout
-      - attach_workspace:
-          at: ~/workspace
       - run:
           name: Build
+          shell: /bin/sh -e
           command: |
-            export PATH=~/workspace/tools/bin:$PATH
+            esp add ghr espbuild
+            echo gnu >> /etc/esp-repos
             espbuild zlib.conf
-            ghr $GHR_FLAGS -u ${CIRCLE_PROJECT_USERNAME} -r ${CIRCLE_PROJECT_REPONAME} -c ${CIRCLE_SHA1} -delete ${VERSION} ~/package
+            ghr -u ${CIRCLE_PROJECT_USERNAME} -r ${CIRCLE_PROJECT_REPONAME} -c ${CIRCLE_SHA1} -delete ${VERSION} ~/package
 
 workflows:
   build:
     jobs:
-      - prepare
-      - zlib:
-          requires:
-            - prepare
+      - zlib
